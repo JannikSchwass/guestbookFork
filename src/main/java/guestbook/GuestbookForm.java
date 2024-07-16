@@ -16,6 +16,10 @@
 package guestbook;
 
 import jakarta.validation.constraints.NotBlank;
+import java.net.UnknownHostException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.springframework.validation.Errors;
 
 /**
  * Type to bind request payloads and make them available in the controller. In contrast to {@link GuestbookEntry} it is
@@ -32,6 +36,7 @@ class GuestbookForm {
 
 	private final @NotBlank String name;
 	private final @NotBlank String text;
+        private final String email;
 
 	/**
 	 * Creates a new {@link GuestbookForm} with the given name and text. Spring Framework will use this constructor to
@@ -43,10 +48,11 @@ class GuestbookForm {
 	 * @param name the value to bind to {@code name}
 	 * @param text the value to bind to {@code text}
 	 */
-	public GuestbookForm(String name, String text) {
+	public GuestbookForm(String name, String text, String email) {
 
 		this.name = name;
 		this.text = text;
+                this.email = email;
 	}
 
 	/**
@@ -71,6 +77,51 @@ class GuestbookForm {
 		return text;
 	}
 
+         public String getEmail() {
+                 return email;
+         }
+        
+        public void validate(Errors errors) {
+		// Complex validation goes here
+                String email = getEmail();
+                if(email == null || email.isBlank()){
+                    return;
+                }
+                //find @
+                if(!email.contains("@") || email.indexOf("@") == 0 || email.indexOf("@") == email.length() - 1){
+                    errors.rejectValue("email", "guestbook.form.email.bademail");
+                    return;
+                }
+                int domainstart = -1;
+                int idx = 0;
+                while(domainstart == -1 && idx < email.length()){
+                    int newIndex = email.indexOf(email, idx);
+                    //only escaped @s
+                    if(newIndex == -1){
+                        errors.rejectValue("email", "guestbook.form.email.bademail");
+                        return;
+                    }
+                    if(email.charAt(newIndex-1) == '\\'){
+                        //escaped
+                        idx = newIndex + 1;
+                        continue;
+                    }
+                    //we have a winner
+                    domainstart = newIndex + 1;
+                }
+                if(domainstart == -1){
+                    errors.rejectValue("email", "guestbook.form.email.bademail");
+                    return;
+                }
+                String domain = email.substring(domainstart);
+                try {
+                  //dns check
+                  java.net.InetAddress.getByName(domain);
+                } catch (UnknownHostException ex) {
+                      errors.rejectValue("email", "guestbook.form.email.nosuchhost");
+                }
+	}
+
 	/**
 	 * Returns a new {@link GuestbookEntry} using the data submitted in the request.
 	 *
@@ -78,6 +129,6 @@ class GuestbookForm {
 	 * @throws IllegalArgumentException if you call this on an instance without the name and text actually set.
 	 */
 	GuestbookEntry toNewEntry() {
-		return new GuestbookEntry(getName(), getText());
+		return new GuestbookEntry(getName(), getText(), getEmail());
 	}
 }
